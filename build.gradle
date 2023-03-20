@@ -1,0 +1,56 @@
+plugins {
+	id 'java'
+	
+	// id 'org.springframework.boot' version '2.7.10-SNAPSHOT'
+	// id 'io.spring.dependency-management' version '1.0.15.RELEASE'
+
+	id 'org.springframework.boot' version '3.0.4'
+	id 'io.spring.dependency-management' version '1.1.0'
+
+	id 'com.sourcemuse.mongo' version '1.0.7'
+}
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '17'
+
+repositories {
+	mavenCentral()
+	maven { url 'https://repo.spring.io/milestone' }
+	maven { url 'https://repo.spring.io/snapshot' }
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'	
+}
+
+// cluster support function 
+apply from: "./gradle/mongo-cluster-support.gradle"
+
+// starting with replicas set (journalingEnabled must be activated)
+// https://stackoverflow.com/questions/25585452/how-to-initialize-mongodb-replication-set-without-calling-rs-initiate
+// extracted 
+// ./mongodb-linux-x86_64-4.0.28/bin/mongo --eval "rs.initiate()"
+def mongoArgs = ["replSet" : "rs0", "vv": ""]
+// store path has to be set explicitely (TODO: find a way via mongo plugin)
+def storePath = "${System.properties['user.home']}${File.separator}.embedmongo-test"
+
+mongo {
+    logging 'console'
+	mongoVersion '4.0.28'
+	args mongoArgs
+	journalingEnabled true
+	artifactStorePath storePath
+}
+// initiate replica set 
+startMongoDb.configure { doLast { initiateReplicaSet( project.mongo.port ); }}
+startManagedMongoDb.configure { doLast { initiateReplicaSet( project.mongo.port ); }}
+
+tasks.withType(Test) {
+	runWithMongoDb = true
+	useJUnitPlatform()
+	configure {
+		doFirst { initiateReplicaSet( project.mongo.port ); }
+	}
+}

@@ -1,0 +1,53 @@
+import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
+def currentOS = DefaultNativePlatform.currentOperatingSystem;
+
+ext.initiateReplicaSet = { port -> 
+    println "current OS $currentOS";
+    println "mongoVersion: $project.mongo.mongoVersion";
+    println "artifactStorePath: $project.mongo.artifactStorePath";
+    println "mongo.port: $project.mongo.port";
+    println "port: $port";
+
+    def filename = ""; 
+    def usesZipTree = false;
+    def commandArray = ["./mongo"]
+    def osSpecificDir = "";
+
+    if (currentOS.isWindows()) {
+        osSpecificDir = "win32";
+        filename = "mongodb-win32-x86_64-2008plus-ssl-${project.mongo.mongoVersion}";
+        usersZipTree = true;
+        commandArray = ["cmd", "/c", "mongo.exe"]
+    } else if (currentOS.isLinux()) {
+        osSpecificDir = "linux";
+        filename = "mongodb-linux-x86_64-${project.mongo.mongoVersion}";
+    } else {
+        println("$currentOS - not implemented yet");
+    }
+
+    def targetDirectory = "${buildDir}${File.separator}.mongo-client";
+    def archiveExt = usesZipTree ? ".zip" : ".tgz";
+    def archivePath = "${project.mongo.artifactStorePath}${File.separator}$osSpecificDir${File.separator}${filename}${archiveExt}";    
+    println "Archive path: $archivePath"
+    copy {
+        if (usesZipTree) {
+            from(zipTree("$archivePath")) {
+                include "**/mongo"
+            }
+        } else {
+            from(tarTree("$archivePath")) {
+                include "**/mongo"
+            }
+        }
+        into targetDirectory
+    }
+
+    // exec
+    def arguments = [ "--port", "$port", "--eval", "rs.initiate()"];
+    def workingDirectory = "$targetDirectory${File.separator}$filename${File.separator}bin";
+    println "Working directory: $workingDirectory";
+    exec {
+        workingDir workingDirectory
+        commandLine commandArray + arguments
+    }
+}
