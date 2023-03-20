@@ -1,0 +1,45 @@
+[
+  {
+    $lookup: {
+      from: "outboxTask",
+      as: "locked",
+      pipeline: [
+        {
+          $match: { host: { $ne: null } },
+        },
+        {
+          $group: {
+            _id: null,
+            references: {
+              $addToSet: "$reference",
+            },
+          },
+        },
+        {
+          $project: {
+            references: true,
+          },
+        },
+      ],
+    },
+  },
+  {
+    $addFields: {
+      excluded: {
+        $arrayElemAt: ["$locked.references", 0],
+      },
+    },
+  },
+  {
+    $match: {
+      host: null,
+      $expr: {
+        $not: {
+          $in: [
+            '$reference', 
+            '$excluded'],
+        },
+      },
+    },
+  },
+  { $limit: 1 },
